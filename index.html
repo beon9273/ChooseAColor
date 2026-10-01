@@ -71,12 +71,8 @@
         <li>Any player can be the <b>computer</b>. Easy picks at random, Medium uses some Cheat Codes, and Hard buys the whole Cheat Path and plays it perfectly.</li>
       </ul>
       <h3>Special squares</h3>
-      <ul class="spec-list">
-        <li><span class="spec-ico">💀</span><b>Lose It All</b> Your score drops to 0.</li>
-        <li><span class="spec-ico">🎁</span><b>Gift Wrap</b> All your points go to another player.</li>
-        <li><span class="spec-ico">🔄</span><b>Switcheroo</b> Swap scores with another player.</li>
-        <li><span class="spec-ico">🍬</span><b>Treat Code</b> Every square shows its number for 3 seconds, then you pick again.</li>
-      </ul>
+      <p class="spec-note">There are always exactly <b>25 special squares</b> hiding on the board.</p>
+      <ul class="spec-list" id="specList"></ul>
     </div>
   </section>
 
@@ -137,6 +133,16 @@
     </div>
     <button type="button" class="big-btn" id="wheelBtn">Stop</button>
   </div>
+</div>
+
+<!-- BIG PICK CARD -->
+<div class="overlay reveal" id="reveal" hidden>
+  <div class="rv-card" id="revealCard" role="dialog" aria-modal="true" aria-live="assertive"></div>
+</div>
+
+<!-- SPECIAL SQUARE POP-UP -->
+<div class="overlay" id="fx" hidden>
+  <div class="modal fx-modal" id="fxBody" role="dialog" aria-modal="true"></div>
 </div>
 
 <!-- WIN -->
