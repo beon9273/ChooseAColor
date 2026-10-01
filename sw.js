@@ -1,7 +1,7 @@
 // Offline support for Choose A Color Square.
 // Serves files from the cache right away, then refreshes the cache in the background,
 // so an update shows up the next time the app is opened.
-const CACHE = 'color-square-v2';
+const CACHE = 'color-square-v3';
 const FILES = [
   './',
   './index.html',

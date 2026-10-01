@@ -14,7 +14,7 @@
   const MIN_SQUARES = 50;          // the dog stops chewing when the board gets this small
   const TREAT_MS = 3000;           // how long a Treat Code shows the numbers
   const QUIZ_MS = 5000;            // time limit for a Pop Quiz
-  const REVEAL_MS = 1900;          // how long the big "you picked" card stays up
+  const REVEAL_MS = 5000;          // how long the big "you picked" card stays up (tap to close sooner)
   const NEXT_TURN_MS = 600;
   const ROWS = 'ABCDEFGHIJ';
   const PLAYER_COLORS = ['#ff5d8f', '#48cae4', '#ffc93c', '#80ed99'];
@@ -399,7 +399,7 @@
       let done = false;
       const finish = () => { if (done) return; done = true; box.hidden = true; box.onclick = null; resolve(); };
       box.onclick = finish;
-      setTimeout(finish, sp ? REVEAL_MS + 700 : REVEAL_MS);
+      setTimeout(finish, REVEAL_MS);
     });
   }
 
