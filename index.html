@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Choose A Color Square</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Fredoka:wght@400;500;600;700&family=Chivo+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1 class="logo">Choose A <span class="rainbow-word"><span>C</span><span>o</span><span>l</span><span>o</span><span>r</span></span> <span class="boxed">Square</span></h1>
+    <p class="tag">First player to land on <strong>exactly 1,000</strong> points wins.</p>
+  </header>
+
+  <!-- SETUP -->
+  <section id="setup" class="setup">
+    <div class="setup-card">
+      <h2>Who's playing?</h2>
+      <div class="count-row" role="radiogroup" aria-label="Number of players">
+        <button type="button" class="count" data-count="2" id="count2">2 players</button>
+        <button type="button" class="count" data-count="3" id="count3">3 players</button>
+        <button type="button" class="count" data-count="4" id="count4">4 players</button>
+      </div>
+      <div class="names" id="names">
+        <label class="name-field" style="--pc:#ff5d8f"><span>Player 1</span><input id="name1" maxlength="14" value="Player 1"></label>
+        <label class="name-field" style="--pc:#48cae4"><span>Player 2</span><input id="name2" maxlength="14" value="Player 2"></label>
+        <label class="name-field" style="--pc:#ffc93c"><span>Player 3</span><input id="name3" maxlength="14" value="Player 3"></label>
+        <label class="name-field" style="--pc:#80ed99"><span>Player 4</span><input id="name4" maxlength="14" value="Player 4"></label>
+      </div>
+      <button type="button" class="big-btn" id="startBtn">Start the game</button>
+    </div>
+
+    <div class="rules">
+      <h3>How to play</h3>
+      <ul>
+        <li>Take turns picking one of the 100 squares. Its hidden number, anywhere from −1,000 to +1,000, is added to your score.</li>
+        <li>Every board hides a 5-square <b>Cheat Path</b> that adds up to exactly 1,000, so the game can always be won.</li>
+        <li><b>Cheat Code</b> (500 pts): reveals the next square on the Cheat Path. The path only works if you start it at 0 points, so look for the button that zeroes out your score.</li>
+        <li>A square you pick is locked for the next 3 turns. Squares that aren't on the path get a new number when they unlock.</li>
+        <li><b>Extra Roll</b> (25 pts): spin the wheel to win extra turns.</li>
+      </ul>
+      <h3>Special squares</h3>
+      <ul class="spec-list">
+        <li><span class="spec-ico">💀</span><b>Lose It All</b> Your score drops to 0.</li>
+        <li><span class="spec-ico">🎁</span><b>Gift Wrap</b> All your points go to another player.</li>
+        <li><span class="spec-ico">🔄</span><b>Switcheroo</b> Swap scores with another player.</li>
+        <li><span class="spec-ico">🍬</span><b>Treat Code</b> Every square shows its number for 3 seconds, then you pick again.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- CHEAT PATH -->
+  <section class="cheat-path" id="cheatPath" hidden aria-label="Cheat Path"></section>
+
+  <!-- GAME -->
+  <main id="game" class="game" hidden>
+    <aside class="players" id="players" aria-label="Scores"></aside>
+
+    <section class="stage">
+      <div class="banner">
+        <div class="turn" id="turnLabel"></div>
+        <p class="result" id="result" aria-live="polite"></p>
+        <div class="treat-bar" id="treatBar" hidden><span></span></div>
+      </div>
+      <div class="board-wrap">
+        <div class="corner"></div>
+        <div class="col-labels" id="colLabels"></div>
+        <div class="row-labels" id="rowLabels"></div>
+        <div class="board" id="board"></div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <div class="shop">
+        <h3>Shop</h3>
+        <button type="button" class="shop-btn cheat" id="hintBtn">
+          <span class="shop-name">Cheat Code</span>
+          <span class="shop-cost">500 pts</span>
+          <span class="shop-desc" id="hintDesc">Reveals the next square on the Cheat Path.</span>
+        </button>
+        <button type="button" class="shop-btn roll" id="rollBtn">
+          <span class="shop-name">Extra Roll</span>
+          <span class="shop-cost">25 pts</span>
+          <span class="shop-desc">Spin for bonus turns.</span>
+        </button>
+      </div>
+      <div class="log-box">
+        <h3>Play-by-play</h3>
+        <ol class="log" id="log"></ol>
+      </div>
+      <button type="button" class="link-btn" id="quitBtn">New game</button>
+    </aside>
+  </main>
+</div>
+
+<!-- WHEEL -->
+<div class="overlay" id="wheelModal" hidden>
+  <div class="modal wheel-modal" role="dialog" aria-modal="true" aria-labelledby="wheelTitle">
+    <h2 id="wheelTitle">Extra Roll</h2>
+    <p class="modal-sub" id="wheelSub">Hit stop to see how many extra turns you win.</p>
+    <div class="wheel-holder">
+      <div class="wheel-pointer"></div>
+      <canvas id="wheelCanvas" width="300" height="300"></canvas>
+    </div>
+    <button type="button" class="big-btn" id="wheelBtn">Stop</button>
+  </div>
+</div>
+
+<!-- WIN -->
+<div class="overlay" id="winModal" hidden>
+  <div class="modal win-modal" role="dialog" aria-modal="true" aria-labelledby="winTitle">
+    <svg class="duck" viewBox="0 0 320 240" role="img" aria-label="A duck eating a pumpkin">
+      <defs>
+        <radialGradient id="duckGlow"><stop offset="0" stop-color="#ffb627" stop-opacity=".4"/><stop offset="1" stop-color="#ffb627" stop-opacity="0"/></radialGradient>
+        <mask id="biteMask"><rect width="320" height="240" fill="#fff"/><circle cx="182" cy="140" r="17" fill="#000"/><circle cx="178" cy="161" r="13" fill="#000"/></mask>
+        <clipPath id="pumpkinClip">
+          <ellipse cx="208" cy="170" rx="32" ry="46"/><ellipse cx="268" cy="170" rx="32" ry="46"/><ellipse cx="238" cy="166" rx="40" ry="50"/>
+        </clipPath>
+      </defs>
+      <circle cx="165" cy="130" r="120" fill="url(#duckGlow)"/>
+      <ellipse cx="165" cy="214" rx="135" ry="12" fill="#000" opacity=".3"/>
+      <!-- pumpkin -->
+      <path d="M236 124 q-3 -18 7 -28 l9 6 q-8 8 -6 22 z" fill="#5b8a2e"/>
+      <path d="M248 104 q20 -16 32 2 q-17 11 -32 -2 z" fill="#7dbb3f"/>
+      <g mask="url(#biteMask)">
+        <ellipse cx="208" cy="170" rx="32" ry="46" fill="#d9650f"/>
+        <ellipse cx="268" cy="170" rx="32" ry="46" fill="#d9650f"/>
+        <ellipse cx="222" cy="168" rx="30" ry="48" fill="#ee7f1f"/>
+        <ellipse cx="254" cy="168" rx="30" ry="48" fill="#ee7f1f"/>
+        <ellipse cx="238" cy="166" rx="27" ry="50" fill="#ff9a36"/>
+      </g>
+      <g clip-path="url(#pumpkinClip)" fill="none" stroke="#ffd79a" stroke-width="4">
+        <circle cx="182" cy="140" r="17"/><circle cx="178" cy="161" r="13"/>
+      </g>
+      <!-- duck -->
+      <path d="M40 162 l-24 -24 l34 8 z" fill="#ffd23f"/>
+      <path d="M90 196 v10 M124 196 v10" stroke="#ff8c1a" stroke-width="5" stroke-linecap="round"/>
+      <path d="M90 204 l-15 8 h28 z M124 204 l-13 8 h28 z" fill="#ff8c1a"/>
+      <ellipse cx="95" cy="168" rx="62" ry="40" fill="#ffd23f"/>
+      <path d="M66 160 q32 -24 66 4 q-26 28 -66 -4 z" fill="#f5b700"/>
+      <ellipse cx="136" cy="142" rx="20" ry="28" fill="#ffd23f"/>
+      <circle cx="146" cy="116" r="28" fill="#ffd23f"/>
+      <circle cx="150" cy="130" r="6" fill="#ff9aa2" opacity=".75"/>
+      <circle cx="152" cy="106" r="6" fill="#1a1230"/><circle cx="154" cy="104" r="2" fill="#fff"/>
+      <path d="M167 112 q19 0 27 12 q-13 4 -29 2 z" fill="#ff8c1a"/>
+      <path d="M165 128 q15 4 23 14 q-15 2 -25 -6 z" fill="#e66f00"/>
+      <path d="M183 123 l9 -3 l3 8 l-9 3 z" fill="#ff9a36"/>
+      <circle cx="202" cy="110" r="3" fill="#ff9a36"/><circle cx="212" cy="122" r="2.5" fill="#ffd79a"/><circle cx="196" cy="96" r="2" fill="#ff9a36"/>
+      <text x="190" y="78" transform="rotate(-12 190 78)" font-family="Bungee, 'Arial Black', sans-serif" font-size="22" fill="#ffb627">nom!</text>
+    </svg>
+    <h2 class="win-title" id="winTitle">Player 1 Wins</h2>
+    <p class="modal-sub" id="winSub">Landed on exactly 1,000 points.</p>
+    <div class="standings" id="standings"></div>
+    <div class="win-actions">
+      <button type="button" class="big-btn" id="againBtn">Play again</button>
+      <button type="button" class="link-btn" id="newBtn">Change players</button>
+    </div>
+  </div>
+</div>
+
+<script src="game.js"></script>
+</body>
+</html>
