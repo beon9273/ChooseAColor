@@ -9,6 +9,7 @@
   const HINT_COST = 500, ROLL_COST = 25;
   const PATH_LEN = 5;              // squares in the guaranteed Cheat Path
   const COOLDOWN = 3;              // turns a square stays locked after it's picked
+  const MAX_ROUNDS = 25;           // turns per player; extra turns and Treat Code re-picks don't count
   const TREAT_MS = 3000;           // how long a Treat Code shows the numbers
   const NEXT_TURN_MS = 1700;
   const ROWS = 'ABCDEFGHIJ';
@@ -99,7 +100,7 @@
   // ---------- state ----------
   let S = freshState();
   function freshState() {
-    return { phase: 'setup', count: 2, players: [], cur: 0, looks: [], board: [], path: [], known: 0,
+    return { phase: 'setup', count: 2, players: [], cur: 0, looks: [], board: [], path: [], known: 0, round: 1, endReason: 'exact',
       picked: null, reveal: false, busy: false, log: [], result: '', winner: null };
   }
   const curP = () => S.players[S.cur];
@@ -160,7 +161,7 @@
       S.players.forEach((p) => { p.score = 0; p.extra = 0; });
     }
     S.looks = makeLooks();
-    S.cur = 0; S.log = []; S.winner = null; S.busy = false; S.phase = 'play';
+    S.cur = 0; S.log = []; S.winner = null; S.busy = false; S.phase = 'play'; S.round = 1;
     genBoard();
     say(`Pick any square, <b>${esc(curP().name)}</b>. Somewhere on this board, five squares add up to exactly 1,000.`);
     $('winModal').hidden = true;
@@ -237,12 +238,37 @@
       say(`${esc(p.name)} uses an extra turn.`);
     } else {
       S.cur = (S.cur + 1) % S.players.length;
-      say(`Your pick, <b>${esc(curP().name)}</b>.`);
+      if (S.cur === 0) {
+        S.round++;
+        if (S.round > MAX_ROUNDS) { endByRounds(); return; }
+        addLog(S.round === MAX_ROUNDS ? `Final round!` : `Round ${S.round} of ${MAX_ROUNDS}.`);
+      }
+      say(S.round === MAX_ROUNDS
+        ? `<b>Final round.</b> Your last pick, <b>${esc(curP().name)}</b>.`
+        : `Your pick, <b>${esc(curP().name)}</b>.`);
     }
     tickCooldowns();
     S.picked = null;
     S.busy = false;
     render();
+  }
+
+  // Out of rounds: whoever is closest to 1,000 wins. Ties go to the earlier player in turn order.
+  function endByRounds() {
+    S.round = MAX_ROUNDS;
+    let w = 0;
+    S.players.forEach((p, i) => {
+      if (Math.abs(p.score - TARGET) < Math.abs(S.players[w].score - TARGET)) w = i;
+    });
+    S.phase = 'win';
+    S.winner = w;
+    S.endReason = 'rounds';
+    S.busy = true;
+    S.picked = null;
+    addLog(`${MAX_ROUNDS} rounds are up. ${S.players[w].name} is closest to 1,000!`, S.players[w]);
+    say(`<b>Time's up!</b> All ${MAX_ROUNDS} rounds are done.`);
+    render();
+    setTimeout(showWin, 900);
   }
 
   // Whoever sits on exactly 1,000 wins; the current player gets priority.
@@ -252,6 +278,7 @@
     if (w === undefined) return false;
     S.phase = 'win';
     S.winner = w;
+    S.endReason = 'exact';
     S.busy = true;
     addLog(`${S.players[w].name} hit exactly 1,000!`, S.players[w]);
     render();
@@ -416,9 +443,13 @@
   function showWin() {
     const w = S.players[S.winner];
     $('winTitle').textContent = `${w.name} Wins`;
-    $('winSub').textContent = 'Landed on exactly 1,000 points.';
     const rest = S.players.filter((p) => p !== w)
       .sort((a, b) => Math.abs(a.score - TARGET) - Math.abs(b.score - TARGET));
+    const tied = rest.filter((p) => Math.abs(p.score - TARGET) === Math.abs(w.score - TARGET));
+    $('winSub').textContent = S.endReason === 'rounds'
+      ? `All ${MAX_ROUNDS} rounds are done, and ${w.name} finished closest to 1,000.` +
+        (tied.length ? ` Tied with ${tied.map((p) => p.name).join(' and ')}; the tie goes to the earlier player.` : '')
+      : 'Landed on exactly 1,000 points.';
     const order = [w, ...rest];
     const suffix = ['st', 'nd', 'rd', 'th'];
     $('standings').innerHTML =
@@ -427,7 +458,7 @@
         const off = Math.abs(p.score - TARGET);
         return `<div class="st-row${i === 0 ? ' first' : ''}" style="--pc:${p.color};--d:${0.25 + i * 0.18}s">
           <span class="st-place p${i + 1}">${i + 1}<sup>${suffix[i]}</sup></span>
-          <span class="st-name">${esc(p.name)}<small>${i === 0 ? 'Exactly 1,000!' : `${num(off)} away from 1,000`}</small></span>
+          <span class="st-name">${esc(p.name)}<small>${off === 0 ? 'Exactly 1,000!' : `${num(off)} away from 1,000`}</small></span>
           <span class="st-score">${scoreText(p.score)}</span>
         </div>`;
       }).join('');
@@ -496,7 +527,8 @@
     // banner
     $('turnLabel').style.setProperty('--pc', p.color);
     $('turnLabel').innerHTML = `<span class="dot"></span><span><span class="who">${esc(p.name)}</span>'s turn</span>` +
-      (p.extra ? `<span class="pill" style="--pc:${p.color}">${p.extra} extra</span>` : '');
+      (p.extra ? `<span class="pill" style="--pc:${p.color}">${p.extra} extra</span>` : '') +
+      `<span class="round${S.round === MAX_ROUNDS ? ' final' : ''}">Round ${S.round} of ${MAX_ROUNDS}</span>`;
     $('result').innerHTML = S.result;
     const bar = $('treatBar');
     if (S.reveal && bar.hidden) { bar.hidden = false; bar.innerHTML = '<span></span>'; }
