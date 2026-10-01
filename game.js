@@ -752,3 +752,40 @@
   if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(start);
   else start((window.claude && window.claude.hot && window.claude.hot.data) || {});
 })();
+
+// ---------- install as an app ----------
+(() => {
+  const box = document.getElementById('installBox');
+  const btn = document.getElementById('installBtn');
+  const tip = document.getElementById('installTip');
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  const hosted = (location.protocol === 'https:' || location.hostname === 'localhost') &&
+    !!document.querySelector('link[rel="manifest"]');
+
+  // Offline cache. Only works on a real website (like GitHub Pages), not when opened as a file.
+  if (hosted && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+  if (standalone || !hosted) return;
+
+  // Android / Chrome / Edge: offer a real install button.
+  let promptEvent = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    promptEvent = e;
+    box.hidden = false;
+    btn.hidden = false;
+  });
+  btn.addEventListener('click', async () => {
+    if (!promptEvent) return;
+    promptEvent.prompt();
+    await promptEvent.userChoice.catch(() => {});
+    promptEvent = null;
+    box.hidden = true;
+  });
+  window.addEventListener('appinstalled', () => { box.hidden = true; });
+
+  // iPhone / iPad Safari has no install button, so explain the Share menu instead.
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (ios) { box.hidden = false; tip.hidden = false; }
+})();

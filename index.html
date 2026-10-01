@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Choose A Color Square</title>
+<meta name="description" content="Pick hidden-number squares and race to exactly 1,000 points. For 2-4 players, or play the computer.">
+<meta name="theme-color" content="#1a1230">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Color Square">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Fredoka:wght@400;500;600;700&family=Chivo+Mono:wght@500;700&display=swap">
@@ -43,6 +52,10 @@
           <button type="button" class="ai-btn medium" data-level="medium" id="quickMedium">Medium</button>
           <button type="button" class="ai-btn hard" data-level="hard" id="quickHard">Hard</button>
         </div>
+      </div>
+      <div class="install" id="installBox" hidden>
+        <button type="button" class="install-btn" id="installBtn" hidden>Install on this device</button>
+        <p class="install-tip" id="installTip" hidden>To get the app on your iPhone: tap <b>Share</b>, then <b>Add to Home Screen</b>.</p>
       </div>
     </div>
 
