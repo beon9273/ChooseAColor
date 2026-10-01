@@ -26,12 +26,24 @@
         <button type="button" class="count" data-count="4" id="count4">4 players</button>
       </div>
       <div class="names" id="names">
-        <label class="name-field" style="--pc:#ff5d8f"><span>Player 1</span><input id="name1" maxlength="14" value="Player 1"></label>
-        <label class="name-field" style="--pc:#48cae4"><span>Player 2</span><input id="name2" maxlength="14" value="Player 2"></label>
-        <label class="name-field" style="--pc:#ffc93c"><span>Player 3</span><input id="name3" maxlength="14" value="Player 3"></label>
-        <label class="name-field" style="--pc:#80ed99"><span>Player 4</span><input id="name4" maxlength="14" value="Player 4"></label>
+        <div class="name-field" style="--pc:#ff5d8f"><label for="name1">Player 1</label><input id="name1" maxlength="14" value="Player 1">
+          <select id="type1" aria-label="Player 1 is"><option value="human">Human</option><option value="easy">Computer · Easy</option><option value="medium">Computer · Medium</option><option value="hard">Computer · Hard</option></select></div>
+        <div class="name-field" style="--pc:#48cae4"><label for="name2">Player 2</label><input id="name2" maxlength="14" value="Player 2">
+          <select id="type2" aria-label="Player 2 is"><option value="human">Human</option><option value="easy">Computer · Easy</option><option value="medium">Computer · Medium</option><option value="hard">Computer · Hard</option></select></div>
+        <div class="name-field" style="--pc:#ffc93c"><label for="name3">Player 3</label><input id="name3" maxlength="14" value="Player 3">
+          <select id="type3" aria-label="Player 3 is"><option value="human">Human</option><option value="easy">Computer · Easy</option><option value="medium">Computer · Medium</option><option value="hard">Computer · Hard</option></select></div>
+        <div class="name-field" style="--pc:#80ed99"><label for="name4">Player 4</label><input id="name4" maxlength="14" value="Player 4">
+          <select id="type4" aria-label="Player 4 is"><option value="human">Human</option><option value="easy">Computer · Easy</option><option value="medium">Computer · Medium</option><option value="hard">Computer · Hard</option></select></div>
       </div>
       <button type="button" class="big-btn" id="startBtn">Start the game</button>
+      <div class="ai-quick">
+        <span class="ai-quick-label">Or play 1-on-1 against the computer:</span>
+        <div class="ai-quick-row">
+          <button type="button" class="ai-btn easy" data-level="easy" id="quickEasy">Easy</button>
+          <button type="button" class="ai-btn medium" data-level="medium" id="quickMedium">Medium</button>
+          <button type="button" class="ai-btn hard" data-level="hard" id="quickHard">Hard</button>
+        </div>
+      </div>
     </div>
 
     <div class="rules">
@@ -43,6 +55,7 @@
         <li>A square you pick is locked for the next 3 turns. Squares that aren't on the path get a new number when they unlock.</li>
         <li><b>Extra Roll</b> (25 pts): spin the wheel to win extra turns.</li>
         <li>Everyone gets <b>25 turns</b>. If nobody hits 1,000 by then, whoever is closest wins. Extra turns from the wheel don't count toward the 25.</li>
+        <li>Any player can be the <b>computer</b>. Easy picks at random, Medium uses some Cheat Codes, and Hard buys the whole Cheat Path and plays it perfectly.</li>
       </ul>
       <h3>Special squares</h3>
       <ul class="spec-list">

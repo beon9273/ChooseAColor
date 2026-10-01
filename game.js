@@ -153,23 +153,30 @@
   // ---------- game actions ----------
   function startGame(keepPlayers) {
     if (!keepPlayers) {
-      S.players = Array.from({ length: S.count }, (_, i) => ({
-        name: ($('name' + (i + 1)).value.trim() || `Player ${i + 1}`),
-        color: PLAYER_COLORS[i], score: 0, extra: 0,
-      }));
+      S.players = Array.from({ length: S.count }, (_, i) => {
+        const type = $('type' + (i + 1)).value;
+        return {
+          name: ($('name' + (i + 1)).value.trim() || `Player ${i + 1}`),
+          color: PLAYER_COLORS[i], score: 0, extra: 0, ai: type === 'human' ? null : type,
+        };
+      });
     } else {
       S.players.forEach((p) => { p.score = 0; p.extra = 0; });
     }
     S.looks = makeLooks();
     S.cur = 0; S.log = []; S.winner = null; S.busy = false; S.phase = 'play'; S.round = 1;
+    resetAiTurn();
     genBoard();
     say(`Pick any square, <b>${esc(curP().name)}</b>. Somewhere on this board, five squares add up to exactly 1,000.`);
     $('winModal').hidden = true;
     render();
   }
 
-  function pick(i) {
-    if (S.phase !== 'play' || S.busy) return;
+  // Human clicks are ignored while the computer is playing its turn.
+  const blocked = (byAi) => S.phase !== 'play' || S.busy || (!!curP().ai && !byAi);
+
+  function pick(i, byAi) {
+    if (blocked(byAi)) return;
     const t = S.board[i];
     if (t.cd > 0) return;
     const p = curP();
@@ -181,6 +188,7 @@
 
     if (t.sp === 'treat') {
       S.reveal = true;
+      S.peeked = true;   // a computer player gets to "remember" what it saw
       msg = `${where} was a <b>Treat Code</b>! Every number is showing for 3 seconds. ${esc(p.name)} picks again.`;
       addLog(`${p.name} found a Treat Code on ${coord(i)}.`, p);
       say(msg);
@@ -248,6 +256,7 @@
         : `Your pick, <b>${esc(curP().name)}</b>.`);
     }
     tickCooldowns();
+    resetAiTurn();
     S.picked = null;
     S.busy = false;
     render();
@@ -286,11 +295,11 @@
     return true;
   }
 
-  const canBuy = (cost) => S.phase === 'play' && !S.busy && curP().score >= cost;
+  const canBuy = (cost, byAi) => !blocked(byAi) && curP().score >= cost;
 
   // Each Cheat Code reveals the next square on the path.
-  function buyHint() {
-    if (!canBuy(HINT_COST) || S.known >= PATH_LEN) return;
+  function buyHint(byAi) {
+    if (!canBuy(HINT_COST, byAi) || S.known >= PATH_LEN) return;
     const p = curP();
     p.score -= HINT_COST;
     const i = S.path[S.known];
@@ -303,8 +312,8 @@
   }
 
   // Free, and doesn't use up the turn.
-  function zeroOut() {
-    if (S.phase !== 'play' || S.busy) return;
+  function zeroOut(byAi) {
+    if (blocked(byAi)) return;
     const p = curP();
     if (p.score === 0) return;
     addLog(`${p.name} zeroed out their score (was ${scoreText(p.score)}).`, p);
@@ -313,8 +322,8 @@
     render();
   }
 
-  function buyRoll() {
-    if (!canBuy(ROLL_COST)) return;
+  function buyRoll(byAi) {
+    if (!canBuy(ROLL_COST, byAi)) return;
     const p = curP();
     p.score -= ROLL_COST;
     addLog(`${p.name} bought an Extra Roll.`, p);
@@ -324,6 +333,97 @@
     openWheel();
   }
 
+  // ---------- computer players ----------
+  // Chances (0-1) that each level makes a smart move when one is available.
+  //  follow: take the next known Cheat Path step when it's on the path
+  //  peek:   "sense" a square that lands exactly on 1,000
+  //  memory: use what it saw during a Treat Code
+  //  hint:   buy a Cheat Code when it can afford one
+  //  zero:   zero out to start the Cheat Path (or to escape a negative score)
+  //  roll:   buy an Extra Roll
+  //  dodge:  steer away from Lose It All and Gift Wrap
+  const AI = {
+    easy:   { label: 'Easy',   follow: 0.3,  peek: 0,    memory: 0,   hint: 0,   zero: 0,   roll: 0.1,  dodge: 0 },
+    medium: { label: 'Medium', follow: 0.85, peek: 0.08, memory: 0.6, hint: 0.6, zero: 0.7, roll: 0.12, dodge: 0.3 },
+    hard:   { label: 'Hard',   follow: 1,    peek: 0.3,  memory: 1,   hint: 1,   zero: 1,   roll: 1,    dodge: 0.8, rollBeforeZero: true },
+  };
+  const AI_DELAY = 950;
+  const AI_MAX_ACTIONS = 4;   // shop/zero actions per turn before it has to pick a square
+  let aiTimer = null;
+  const chance = (p) => Math.random() < p;
+
+  function resetAiTurn() { S.aiActions = 0; S.aiRolled = false; S.peeked = false; }
+
+  function scheduleAi() {
+    if (aiTimer || S.phase !== 'play' || S.busy || !curP().ai) return;
+    aiTimer = setTimeout(aiTurn, AI_DELAY);
+  }
+
+  // How far along the Cheat Path the current score is: 0 = ready for step 1, -1 = off the path.
+  function pathPos(score) {
+    if (score === 0) return 0;
+    const k = pathTotals().indexOf(score);
+    return k >= 0 && k < PATH_LEN - 1 ? k + 1 : -1;
+  }
+
+  function closestIdx(score) {
+    let best = -1, bestD = Infinity;
+    S.board.forEach((t, i) => {
+      if (t.cd > 0 || t.sp) return;
+      const d = Math.abs(score + t.v - TARGET);
+      if (d < bestD) { bestD = d; best = i; }
+    });
+    return best;
+  }
+
+  function randomIdx(dodge, score) {
+    let open = S.board.map((_, i) => i).filter((i) => S.board[i].cd === 0);
+    if (score > 0 && chance(dodge)) {
+      const safer = open.filter((i) => S.board[i].sp !== 'zero' && S.board[i].sp !== 'gift');
+      if (safer.length) open = safer;
+    }
+    return open[ri(0, open.length - 1)];
+  }
+
+  function aiTurn() {
+    aiTimer = null;
+    if (S.phase !== 'play' || S.busy) return;
+    const p = curP();
+    if (!p.ai) return;
+    const L = AI[p.ai];
+    const open = (i) => S.board[i].cd === 0;
+    const pos = pathPos(p.score);
+    const picksLeft = (MAX_ROUNDS - S.round) + 1 + p.extra;   // picks this player still gets, including this one
+    const canAct = S.aiActions < AI_MAX_ACTIONS;
+
+    // 1. Next step of the Cheat Path, if it's known and unlocked.
+    if (pos >= 0 && pos < S.known && open(S.path[pos]) && chance(L.follow)) return pick(S.path[pos], true);
+
+    // 2. A square that lands exactly on 1,000.
+    const exact = S.board.findIndex((t, i) => open(i) && !t.sp && p.score + t.v === TARGET);
+    if (exact >= 0 && chance(S.peeked ? L.memory : L.peek)) return pick(exact, true);
+    if (S.peeked && chance(L.memory)) { const c = closestIdx(p.score); if (c >= 0) return pick(c, true); }
+
+    if (canAct) {
+      S.aiActions++;
+      // 3. Escape a negative score.
+      if (p.score < 0 && chance(L.zero)) return zeroOut(true);
+      // 4. Buy the next Cheat Code (only when not already walking the path).
+      if (pos < 0 && S.known < PATH_LEN && p.score >= HINT_COST && chance(L.hint)) return buyHint(true);
+      // 5. Extra Roll. Hard only spends on it right before zeroing out, when the points are free.
+      const readyToZero = pos < 0 && S.known === PATH_LEN && picksLeft >= PATH_LEN && open(S.path[0]);
+      if (!S.aiRolled && p.score >= ROLL_COST && pos < 0 && (L.rollBeforeZero ? readyToZero : true) && chance(L.roll)) {
+        S.aiRolled = true;
+        return buyRoll(true);
+      }
+      // 6. Zero out to start the full Cheat Path, if there are enough picks left to finish it.
+      if (readyToZero && p.score !== 0 && chance(L.zero)) return zeroOut(true);
+    }
+
+    // 7. Otherwise, a random square.
+    pick(randomIdx(L.dodge, p.score), true);
+  }
+
   // ---------- spinning wheel ----------
   const wheel = { rot: 0, speed: 0.012, mode: 'idle', last: 0, from: 0, to: 0, t0: 0, dur: 3200, k: 0, raf: 0 };
   const TAU = Math.PI * 2;
@@ -331,16 +431,18 @@
 
   function openWheel() {
     $('wheelModal').hidden = false;
-    $('wheelSub').textContent = 'Hit stop to see how many extra turns you win.';
+    const p = curP();
     const btn = $('wheelBtn');
+    $('wheelSub').textContent = p.ai ? `${p.name} is spinning…` : 'Hit stop to see how many extra turns you win.';
     btn.textContent = 'Stop';
-    btn.disabled = false;
+    btn.disabled = !!p.ai;
     btn.dataset.mode = 'stop';
     wheel.mode = 'spinning';
     wheel.last = performance.now();
     cancelAnimationFrame(wheel.raf);
     wheel.raf = requestAnimationFrame(wheelLoop);
-    btn.focus();
+    if (p.ai) setTimeout(stopWheel, ri(900, 1800));
+    else btn.focus();
   }
 
   function stopWheel() {
@@ -377,6 +479,7 @@
     const btn = $('wheelBtn');
     btn.textContent = n === 0 ? 'Back to the board' : `Collect ${n}`;
     btn.dataset.mode = 'collect';
+    if (curP().ai) { btn.disabled = true; setTimeout(collectWheel, 1300); return; }
     btn.disabled = false;
     btn.focus();
   }
@@ -514,10 +617,11 @@
     // players
     $('players').innerHTML = S.players.map((pl, i) => {
       const gap = TARGET - pl.score;
-      const zero = i === S.cur && S.phase === 'play'
+      const zero = i === S.cur && S.phase === 'play' && !pl.ai
         ? `<button type="button" class="zero-btn" id="zeroBtn"${S.busy || pl.score === 0 ? ' disabled' : ''}>Zero out my score</button>` : '';
       return `<div class="pcard${i === S.cur ? ' active' : ''}" style="--pc:${pl.color}">
         <div class="pname"><span>${esc(pl.name)}</span>${pl.extra ? `<span class="pill">+${pl.extra} turn${pl.extra > 1 ? 's' : ''}</span>` : ''}</div>
+        ${pl.ai ? `<div class="cpu-tag ${pl.ai}">Computer · ${AI[pl.ai].label}</div>` : ''}
         <div class="pscore">${scoreText(pl.score)}</div>
         <div class="pneed${gap === 0 ? ' bang' : ''}">${gap === 0 ? 'Exactly 1,000!' : `Needs ${signed(gap)} to hit 1,000`}</div>
         ${zero}
@@ -528,6 +632,7 @@
     $('turnLabel').style.setProperty('--pc', p.color);
     $('turnLabel').innerHTML = `<span class="dot"></span><span><span class="who">${esc(p.name)}</span>'s turn</span>` +
       (p.extra ? `<span class="pill" style="--pc:${p.color}">${p.extra} extra</span>` : '') +
+      (p.ai && S.phase === 'play' ? `<span class="thinking">thinking<i>.</i><i>.</i><i>.</i></span>` : '') +
       `<span class="round${S.round === MAX_ROUNDS ? ' final' : ''}">Round ${S.round} of ${MAX_ROUNDS}</span>`;
     $('result').innerHTML = S.result;
     const bar = $('treatBar');
@@ -535,7 +640,7 @@
     if (!S.reveal) bar.hidden = true;
 
     // board
-    boardEl.classList.toggle('locked', S.busy);
+    boardEl.classList.toggle('locked', S.busy || !!p.ai);
     squares.forEach((b, i) => {
       const t = S.board[i], look = S.looks[i];
       b.style.background = look.bg;
@@ -578,11 +683,22 @@
     $('log').innerHTML = S.log.length
       ? S.log.map((e) => `<li style="--pc:${e.color || 'var(--line)'}">${esc(e.text)}</li>`).join('')
       : '<li class="empty">Nothing yet. Pick a square!</li>';
+
+    scheduleAi();
   }
 
   function renderSetup() {
     [2, 3, 4].forEach((n) => $('count' + n).setAttribute('aria-checked', String(S.count === n)));
     document.querySelectorAll('.name-field').forEach((el, i) => { el.hidden = i >= S.count; });
+  }
+
+  // Switching a slot to a computer gives it a robot name, unless the name was already customised.
+  const CPU_NAMES = { easy: 'Robo Rookie', medium: 'Robo Pro', hard: 'Robo Boss' };
+  const isDefaultName = (v, n) => v === '' || v === `Player ${n}` || Object.values(CPU_NAMES).includes(v);
+  function setSlotType(n, type) {
+    const input = $('name' + n);
+    $('type' + n).value = type;
+    if (isDefaultName(input.value.trim(), n)) input.value = type === 'human' ? `Player ${n}` : CPU_NAMES[type];
   }
 
   // ---------- wiring ----------
@@ -591,15 +707,23 @@
     b.addEventListener('click', () => { S.count = Number(b.dataset.count); renderSetup(); });
   });
   $('startBtn').addEventListener('click', () => startGame(false));
-  $('hintBtn').addEventListener('click', buyHint);
-  $('rollBtn').addEventListener('click', buyRoll);
+  $('hintBtn').addEventListener('click', () => buyHint(false));
+  $('rollBtn').addEventListener('click', () => buyRoll(false));
+  [1, 2, 3, 4].forEach((n) => $('type' + n).addEventListener('change', (e) => setSlotType(n, e.target.value)));
+  document.querySelectorAll('.ai-btn').forEach((b) => b.addEventListener('click', () => {
+    S.count = 2;
+    setSlotType(1, 'human');
+    setSlotType(2, b.dataset.level);
+    renderSetup();
+    startGame(false);
+  }));
   $('wheelBtn').addEventListener('click', () => {
     if ($('wheelBtn').dataset.mode === 'collect') collectWheel(); else stopWheel();
   });
   $('againBtn').addEventListener('click', () => startGame(true));
   $('newBtn').addEventListener('click', toSetup);
   $('quitBtn').addEventListener('click', toSetup);
-  $('players').addEventListener('click', (e) => { if (e.target.closest('#zeroBtn')) zeroOut(); });
+  $('players').addEventListener('click', (e) => { if (e.target.closest('#zeroBtn')) zeroOut(false); });
   function toSetup() {
     const count = S.count;
     S = freshState();
